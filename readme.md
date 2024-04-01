@@ -33,16 +33,15 @@ to convert these csv's to a sparse matrix format and compute its eigendecomposit
 
 
 ## Supplementary figures
-### Robustsness of eigendecompisition results
+### Robustsness of eigendecomposition results
 1. Run
 `'./scripts/eig_robust/eig_robust_data.py'`
 to generate the data for the robustness of eigendecomposition results. Files generated are:
-* `eigenvalues_robust.nc`: eigenvalues of the connectome for several different transformations
-* `eigenvector_robust.nc`: eigenvectors of the connectome for several different transformations 
-- `original`: the original connectome matrix
-- `tanh_1`: the connectome matrix scaled by the max abs syn count then the tanh function applied with a scaling factor of 1 
-- `tanh_2`: the connectome matrix scaled by the max abs syn count then the tanh function applied with a scaling factor of 2
-- `tanh_10`: the connectome matrix scaled by the max abs syn count then the tanh function applied with a scaling factor of 10
-- `sign`: the connectome matrix binarized by the sign function
-- `shuffled_i`: the connectome matrix with the synapse counts rows and column indices shuffled
-- `measurement_error_i`: the connectome matrix with the synapse counts randomly perturbed by a poisson process and sign randomly flipped according to the NT confidence
+* `eigenvalues_robust.nc` and * `eigenvector_robust.nc`: eigenvalues and vectors of the connectome for several different transformations:
+    - `original`: the original connectome matrix
+    - `tanh_1`: the connectome matrix scaled by the max abs syn count then the tanh function applied with a scaling factor of 1 
+    - `tanh_2`: the connectome matrix scaled by the max abs syn count then the tanh function applied with a scaling factor of 2
+    - `tanh_10`: the connectome matrix scaled by the max abs syn count then the tanh function applied with a scaling factor of 10
+    - `sign`: the connectome matrix binarized by the sign function
+    - `shuffled_i`: the connectome matrix with the synapse counts rows and column indices shuffled
+    - `measurement_error_i`: the connectome matrix with the synapse counts randomly set by a poisson process with mean equal to original count of each entry and sign randomly flipped according to the prob of NT.

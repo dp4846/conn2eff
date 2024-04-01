@@ -1,0 +1,8 @@
+*.nc
+*.csv
+*.npz
+*.DS_Store
+*.npy
+*.key
+*.txt
+*.png
