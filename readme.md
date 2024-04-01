@@ -28,3 +28,21 @@ to convert these csv's to a sparse matrix format and compute its eigendecomposit
 * `eigenvalues_10000.npy`: eigenvalues of the connectome
 * `eigvec_10000.npy`: eigenvectors of the connectome
 * `connectome_sgn_cnt_prob.csv` : connectome in list form with P(excitatory) (used for measurement error sims)
+
+...
+
+
+## Supplementary figures
+### Robustsness of eigendecompisition results
+1. Run
+`'./scripts/eig_robust/eig_robust_data.py'`
+to generate the data for the robustness of eigendecomposition results. Files generated are:
+* `eigenvalues_robust.nc`: eigenvalues of the connectome for several different transformations
+* `eigenvector_robust.nc`: eigenvectors of the connectome for several different transformations 
+- `original`: the original connectome matrix
+- `tanh_1`: the connectome matrix scaled by the max abs syn count then the tanh function applied with a scaling factor of 1 
+- `tanh_2`: the connectome matrix scaled by the max abs syn count then the tanh function applied with a scaling factor of 2
+- `tanh_10`: the connectome matrix scaled by the max abs syn count then the tanh function applied with a scaling factor of 10
+- `sign`: the connectome matrix binarized by the sign function
+- `shuffled_i`: the connectome matrix with the synapse counts rows and column indices shuffled
+- `measurement_error_i`: the connectome matrix with the synapse counts randomly perturbed by a poisson process and sign randomly flipped according to the NT confidence

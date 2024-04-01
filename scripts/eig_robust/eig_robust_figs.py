@@ -8,63 +8,52 @@ from scipy.sparse import csr_matrix
 import numpy as np
 from tqdm import tqdm
 import xarray as xr
+import matplotlib.gridspec as gridspec
+#%%
+#
+def save_complex(data_array, *args, **kwargs):
+    ds = xr.Dataset({'real': data_array.real, 'imag': data_array.imag})
+    return ds.to_netcdf(*args, **kwargs)
 
-#first we try shuffling the connectome and seeing if we get similar eigenvalues/eigenvectors
-#df_sgn = pd.opetop_dir + 'connectome_sgn_cnt.csv')
-#don't load index column
-df_sgn = pd.read_csv('../data/connectome_sgn_cnt.csv', index_col=0)
-post_root_id_ind = df_sgn['post_root_id_ind'].values
-pre_root_id_ind = df_sgn['pre_root_id_ind'].values
-syn_count_sgn = df_sgn['syn_count_sgn'].values
-n_neurons = np.max([np.max(post_root_id_ind), np.max(pre_root_id_ind)])+1
-C_orig = csr_matrix((syn_count_sgn, (post_root_id_ind, pre_root_id_ind)), shape=(n_neurons, n_neurons), dtype='float64')
-
-#get eigenvalues and eigenvectors
-k_eigs = 10
-eigenvalues_orig, eig_vec_orig = sp.linalg.eigs(C_orig, k=k_eigs,)
-eig_vec_orig = eig_vec_orig[:,np.argsort(np.abs(eigenvalues_orig))[::-1]]
-eigenvalues_orig = eigenvalues_orig[np.argsort(np.abs(eigenvalues_orig))[::-1]]
-
-n_shuffles = 5
-#now draw random indices and shuffle the matrix
-eigenvalues_rands = []
-eig_vec_rands = []
-for i in tqdm(range(n_shuffles)):
-    post_root_id_ind_rand = np.random.permutation(post_root_id_ind)
-    pre_root_id_ind_rand = np.random.permutation(pre_root_id_ind)
-    C_rand = csr_matrix((syn_count_sgn, (post_root_id_ind_rand, pre_root_id_ind_rand)), shape=(n_neurons, n_neurons), dtype='float64')
-    eigenvalues_rand, eig_vec_rand = sp.linalg.eigs(C_rand, k=k_eigs)
-
-    eig_vec_rand = eig_vec_rand[:,np.argsort(np.abs(eigenvalues_rand))[::-1]]
-    eigenvalues_rand = eigenvalues_rand[np.argsort(np.abs(eigenvalues_rand))[::-1]]
-    eigenvalues_rands.append(eigenvalues_rand)
-    eig_vec_rands.append(eig_vec_rand)
+def read_complex(*args, **kwargs):
+    ds = xr.open_dataset(*args, **kwargs)
+    return ds['real'] + ds['imag'] * 1j
 
 
+#load the above
+da_eigvec = xr.open_dataset('../../data/eigenvectors_robust.nc')
+da_eigval = read_complex('../../data/eigenvalues_robust.nc')
 
 #%%
+i = 0
+eigenvalues_orig = da_eigval.loc['original'].values
+#eig_vec_orig = da_eigvec.loc['original'].values
+eigenvalues_rands = [da_eigval.loc[f'shuffled_{i}'].values for i in range(5)]
+#eig_vec_rands = da_eigvec.loc[f'shuffled_{i}'].values
+k_eigs = eigenvalues_orig.shape[0]
 plt.figure()
 ind = np.arange(1, k_eigs+1)
 plt.plot(ind, np.abs(eigenvalues_orig), c='k', label='Original',)
-plt.plot(ind, np.abs(eigenvalues_rand), c='gray', label='Shuffle', ls='--')
+for i in range(5):
+    plt.plot(ind, np.abs(eigenvalues_rands[i]), c='gray', label='Shuffle', ls='--')
 plt.xlabel('Eigenvalue index')
 plt.ylabel('Eigenvalue')
-plt.legend()
+plt.legend(['Original', 'Shuffled'])
 plt.loglog()
 #make square plot
 plt.gca().set_aspect('equal', adjustable='box')
 plt.grid()
-plt.ylim(1e-2, 1.1)
+plt.ylim(1e1, 1e4)
 plt.title('Eigenvalues of connectome')
-plt.savefig('./figs/eigenvalues_orig_shuffled.png', dpi=300)
+plt.savefig('./eigenvalues_orig_shuffled.png', dpi=300)
 #%%
 #make five subplots of the eigenvectors for the original and shuffled connectomes
 eig_indices = [0, 4, 9, 49, 99]  # Indices for 1st, 5th, 10th, 50th, 100th eigenvectors
 plt.figure(figsize=(10, 12))
 for i, eig_index in enumerate(eig_indices):
     plt.subplot(5, 2, 2*i+1)
-    plt.plot(np.real(eig_vec_orig[:,eig_index]), label='Real')
-    plt.plot(np.imag(eig_vec_orig[:,eig_index]), label='Imaginary')
+    plt.plot(da_eigvec['real'].loc['original'][:, eig_index], label='Real')
+    plt.plot(da_eigvec['imag'].loc['original'][:, eig_index], label='Imaginary')
     
     if i != 4:
        plt.gca().set_xticklabels([])
@@ -78,8 +67,8 @@ for i, eig_index in enumerate(eig_indices):
     ylim1 = plt.ylim()
 
     plt.subplot(5, 2, 2*i+2)
-    plt.plot(np.real(eig_vec_rand[:,eig_index]))
-    plt.plot(np.imag(eig_vec_rand[:,eig_index]))
+    plt.plot(da_eigvec['real'].loc['shuffled_1'][:, eig_index], label='Real')
+    plt.plot(da_eigvec['imag'].loc['shuffled_1'][:, eig_index], label='Imaginary')
     plt.title('Shuffled connectome eigenvector ' + str(eig_index+1))
     ylim2 = plt.ylim()
     if i != 4:
@@ -93,7 +82,7 @@ for i, eig_index in enumerate(eig_indices):
     plt.subplot(5, 2, 2*i+2)
     plt.ylim(-0.5, 0.5)
     #only if the lower left plot put on xticks
-plt.savefig('./figs/eigenvectors_orig_shuffled.png', dpi=300)
+plt.savefig('./eigenvectors_orig_shuffled.png', dpi=300)
 #%%
 #need a simple function to calculate sorted eigenvectors power up to certain cumulative quantile
 def eigvec_power(eig_vec, quantile):
@@ -106,27 +95,29 @@ def eigvec_power(eig_vec, quantile):
 #get the ind for the 75th quantile for the original and shuffled connectomes and plot them
 quantile = 0.75
 inds = []
-for eig_index in range(k_eigs):
-    eig_power_sort_orig, eig_power_cumsum_orig, ind_orig = eigvec_power(eig_vec_orig[:,eig_index], quantile)
-    eig_power_sort_rand, eig_power_cumsum_rand, ind_rand = eigvec_power(eig_vec_rand[:,eig_index], quantile)
+for eig_index in tqdm(range(k_eigs)):
+    eig_power_sort_orig, eig_power_cumsum_orig, ind_orig = eigvec_power(da_eigvec['real'].loc['original'][:, eig_index], quantile)
+    eig_power_sort_rand, eig_power_cumsum_rand, ind_rand = eigvec_power(da_eigvec['real'].loc['shuffled_1'][:, eig_index], quantile)
     inds.append([ind_orig, ind_rand])
 inds = np.array(inds)
-
+#%%
 ind = np.arange(1, k_eigs+1)
 plt.scatter(ind, inds[:,0], label='Original', c='k')
 plt.scatter(ind, inds[:,1], label='Shuffled', c='gray')
 plt.xlabel('Eigenvalue index')
 plt.ylabel('Number of loadings to reach ' + str(quantile) + ' quantile power')
-plt.legend(loc='upper left')
+plt.legend(loc='lower right')
 plt.loglog()
-plt.title('Eigenvector sparsity')
-plt.savefig('./figs/eigenvector_sparsity_orig_shuffled.png', dpi=300)
+plt.title('Eigenvector concentration')
+plt.savefig('./eigenvector_sparsity_orig_shuffled.png', dpi=300)
 #%%
 #make two subplots of the real imaginary axis for eigenvalues for the original and shuffled connectomes
 plt.figure()
 ylim = (-1.1, 1.1)
 ticks = [-1, 0, 1]
 
+eigenvalues_orig = da_eigval.loc['original'].values/np.max(np.abs(da_eigval.loc['original'].values))
+eigenvalues_rand = da_eigval.loc['shuffled_1'].values/np.max(np.abs(da_eigval.loc['original'].values))
 # Original eigenvalues plot
 plt.subplot(1, 3, 1)
 plt.scatter(np.real(eigenvalues_orig), np.imag(eigenvalues_orig), c='k', s=5)
@@ -157,7 +148,7 @@ plt.ylim(ylim); plt.xlim(ylim); plt.yticks(ticks); plt.xticks(ticks)
 plt.gca().set_yticklabels([]); plt.gca().set_xticklabels([]);
 plt.grid()
 plt.tight_layout()
-plt.savefig('./figs/eigenvalues_orig_shuffled.png', dpi=300)
+plt.savefig('./eigenvalues_orig_shuffled.png', dpi=300)
 #%%
 def process_eigenvectors(eig_vec):
     eig_vecs_real = []
@@ -178,13 +169,15 @@ def process_eigenvectors(eig_vec):
 
 #%%
 #get new eigenvectors for original and shuffled connectomes
+# eig_vec_orig_no_conj = process_eigenvectors(eig_vec_orig)
+# eig_vec_rand_no_conj = process_eigenvectors(eig_vec_rand)
+eig_vec_orig = da_eigvec['real'].loc['original'].values + 1j*da_eigvec['imag'].loc['original'].values
+eig_vec_rand = da_eigvec['real'].loc['shuffled_1'].values + 1j*da_eigvec['imag'].loc['shuffled_1'].values
 eig_vec_orig_no_conj = process_eigenvectors(eig_vec_orig)
 eig_vec_rand_no_conj = process_eigenvectors(eig_vec_rand)
+#%%
 #truncate to min len of eigenvectors
 
-
-import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
 
 #plot correlation matrix of eigenvectors for original and shuffled connectomes
 #correlation matrix for original connectome
@@ -242,56 +235,47 @@ axs[0].set_title('Original connectome')
 axs[1].set_title('Shuffled connectome')
 
 
-# %%
-max_syn_cnt = np.max(syn_count_sgn)
-C_orig_tanh_2 = np.tanh(C_orig/(max_syn_cnt/2))
-C_orig_tanh_10 = np.tanh(C_orig/(max_syn_cnt/10))
-C_orig_tanh_25 = np.tanh(C_orig/(max_syn_cnt/25))
-#now for extremal case binarize the connectome
-C_orig_sign = C_orig.sign()
-#matrix list 
-C_list = [C_orig, C_rand, C_orig_tanh_2, C_orig_tanh_10, C_orig_tanh_25, C_orig_sign]
-
-# get eigenvalues and eigenvectors for each matrix
-eigenvalues_list = []
-eig_vec_list = []
-for C in C_list:
-    eigenvalues, eig_vec = sp.linalg.eigs(C, k=k_eigs,)
-    #sort eigenvalues by magnitude
-    max = np.max(np.abs(eigenvalues))
-    #sort eigenvectors by magnitude
-    eig_vec = eig_vec[:,np.argsort(np.abs(eigenvalues))[::-1]]
-    eigenvalues = eigenvalues[np.argsort(np.abs(eigenvalues))[::-1]]
-    eigenvalues_list.append(eigenvalues)
-    eig_vec_list.append(eig_vec)
-#%% sort both eigenvalues and eigenvectors by magnitude
-max_syn_cnt = np.max(syn_count_sgn)
-plt.subplot(121)
-norm = max_syn_cnt/2
-plt.scatter(syn_count_sgn/norm, np.tanh(syn_count_sgn/norm), s=1, alpha=0.5)
-plt.title('Tanh (2 * C / max(C))')
-plt.subplot(122)
-norm = max_syn_cnt/25
-plt.scatter(syn_count_sgn/norm, np.tanh(syn_count_sgn/norm), s=1, alpha=0.5)
-plt.title('Tanh (25 * C / max(C))')
-plt.xlim(-10,10)
-
 #%%
 plt.figure()
 ind = np.arange(1, k_eigs+1)
-labels = ['Original', 'Shuffled', 'Tanh 2', 'Tanh 10', 'Tanh 25', 'Sign']
-for i, eigenvalues in enumerate(eigenvalues_list):
-    plt.plot(ind, np.abs(eigenvalues), label=labels[i])
+#make a reasonable color scheme colors are different transfomr types
+colors = ['k', 'gray', 'r', 'b', 'g', 'c']
+for i, eigenvalues in enumerate(da_eigval):
+    label = str(eigenvalues.coords['transform'].values )
+    print(label)
+    ls = '-'
+    if 'shuffled' in label:
+        ls = ':'
+    if 'measurement_error' in label:
+        ls = '--'
+    if 'shuffled' in label or 'measurement_error' in label:
+        c = 'gray'
+    elif 'original' in label:
+        c = 'k'
+    elif 'tanh_2' in label:
+        c = 'orange'
+    elif 'tanh_10' in label:
+        c = 'red'
+    elif 'tanh_1' in label:
+        c = 'pink'
+    elif 'sign' in label:
+        c = 'c'
+    else:
+        c = 'gray'
+    print(ls)
+    plt.plot(ind, np.abs(eigenvalues)/np.abs(eigenvalues[0]), label=label, c=c, ls=ls)
+
 plt.xlabel('Eigenvalue index')
 plt.ylabel('Eigenvalue')
-plt.legend()
+plt.legend(loc=(1.05, 0))
 plt.loglog()
 #make square plot
 plt.gca().set_aspect('equal', adjustable='box')
 plt.grid()
 plt.ylim(1e-2, 1.1)
 plt.title('Eigenvalues of connectome')
-plt.savefig('./figs/eigenvalues_orig_shuffled_tanh_sign.png', dpi=300)
+plt.tight_layout()
+plt.savefig('eigenvalues_orig_shuffled_tanh_sign.png', dpi=300)
 # %%
 def process_eigenvectors_real_imag_split(eig_vec):
     eig_vecs_real = []
@@ -361,72 +345,38 @@ plt.xlabel('Eigenvalue index (original)')
 plt.ylabel('Max correlation |r|')
 plt.tight_layout()
 plt.savefig('./figs/max_correlation_eigenv.png', dpi=300)
-# %% now draw noisy samples according to confidence estimates of sign
-df_sgn = pd.read_csv('../data/connectome_sgn_cnt_prob.csv', index_col=0)
-p_exc = df_sgn.groupby('pre_root_id_ind').agg({'p_exc':'first'})
-df_sgn_rand = df_sgn.copy()
-n_measure_error = 5
-measure_error_eigenvalues = []
-measure_error_eigvec = []
 
-for i in tqdm(range(n_measure_error)):
-    rand_sgn = np.random.binomial(1, p_exc['p_exc'].values)
-    rand_sgn[rand_sgn==0] = -1
-    p_exc['rand_sgn'] = rand_sgn
-    df_sgn_rand['sgn'] = df_sgn_rand['pre_root_id_ind'].map(p_exc['rand_sgn'])
-    syn_count = np.abs(df_sgn_rand['syn_count_sgn'].values)
-    syn_count = np.random.poisson(syn_count)
-    syn_count_sgn = syn_count*df_sgn_rand['sgn'].values
-    #set an abs threshold for 5 synapses
-    syn_count_sgn[np.abs(syn_count_sgn)<5] = 0
-    C_sgn_rand = csr_matrix((syn_count_sgn, (df_sgn_rand['pre_root_id_ind'], df_sgn_rand['post_root_id_ind'])), shape=(n_neurons, n_neurons), dtype='float64')
-    eigenvalues, eig_vec = sp.linalg.eigs(C_sgn_rand, k=k_eigs)
-    #sort eigenvalues by magnitude
-    eig_vec = eig_vec[:,np.argsort(np.abs(eigenvalues))[::-1]]
-    eigenvalues = eigenvalues[np.argsort(np.abs(eigenvalues))[::-1]]
-    measure_error_eigenvalues.append(eigenvalues)
-    measure_error_eigvec.append(eig_vec)
+#%%
+plt.figure(figsize=(4, 2))
+df_sgn = pd.read_csv('../../data/connectome_sgn_cnt_prob.csv', index_col=0)
+syn_count_sgn = df_sgn['syn_count_sgn'].values
+max_syn_cnt = np.max(np.abs(syn_count_sgn))
+syn_count_sgn = syn_count_sgn/(max_syn_cnt/2)
+tanh_1 = np.tanh(syn_count_sgn)
+plt.scatter(syn_count_sgn, tanh_1, s=1, alpha=0.5)
+#plt.hist(syn_count_sgn, bins=1000, cumulative=True, density=True, histtype='step', color='k', label='Cumulative distribution')
+#plt.legend()
+plt.xlabel('c*Synapse count/max')
+plt.ylabel('Tanh(c*Synapse count/max)')
+plt.title('Tanh transformation of synapse count c=2')
+plt.xlim(-2, 2)
 # %%
-
-ind = np.arange(1, k_eigs+1)
-plt.figure()
-max = np.max(np.abs(eigenvalues_orig))
-plt.plot(ind, np.abs(eigenvalues_orig)/max, label='Original', c='k')
-for i in range(n_measure_error):
-    plt.plot(ind, np.abs(measure_error_eigenvalues[i])/max, label='Measurement error model', c='gray', ls='--')
-plt.loglog()
-plt.axis('square')
-plt.xlim(1, 1000)
-plt.ylim(1e-3, 1.1)
-plt.grid()
-plt.title('Eigenvalues of connectome')
-plt.xlabel('Eigenvalue index')
-plt.ylabel('Eigenvalue')
-plt.legend(['Original', 'Measurement error model sims'])
-plt.savefig('./figs/eigenvalues_orig_measurement_error.png', dpi=300)
-# %%
-#need to save all eigenvectors in one data array
-
-eig_decomp_labels = ['original','tanh_2', 'tanh_10', 'tanh25', 'sign'] +  ['shuffled_' + str(i) for i in  np.arange(n_shuffles)] + ['measurement_error_' + str(i) for i in  np.arange(n_measure_error)]
-n_eig_decomps = len(eig_decomp_labels)
-n_neurons = len(eig_vec_list[0])
-da = xr.DataArray(np.zeros((n_eig_decomps, n_neurons, k_eigs)), dims=['eig_decomp', 'neuron_index', 'eig_index'],
-                  coords={'eig_decomp':eig_decomp_labels, 'neuron_index':np.arange(n_neurons), 'eig_index':np.arange(k_eigs)})
-
-eig_vec_array = np.array(eig_vec_list)
-da[0] = eig_vec_array[0]
-da[1:5] = eig_vec_array[2:]
-da[5:5+n_shuffles] = np.array(eig_vec_rands)
-da[5+n_shuffles:] = np.array(measure_error_eigvec)
-
-da.to_netcdf('./data/eigenvectors_robust.nc')
-
-#now eigenvalues
-da_eig = xr.DataArray(np.zeros((n_eig_decomps, k_eigs)), dims=['eig_decomp', 'eig_index'],
-                  coords={'eig_decomp':eig_decomp_labels, 'eig_index':np.arange(k_eigs)})
-da_eig[0] = eigenvalues_orig
-da_eig[1:5] = [eigenvalues_list[i] for i in range(2,5)]
-da_eig[5:5+n_shuffles] = np.array(eigenvalues_rands)
-da_eig[5+n_shuffles:] = np.array(measure_error_eigenvalues)
-da_eig.to_netcdf('./data/eigenvalues_robust.nc')
+# look at top eigencircutis
+eig_index = 0
+transform = 'tanh_2'
+eig_vec = da_eigvec['real'].loc[transform][:, eig_index] + da_eigvec['imag'].loc[transform][:, eig_index]*1j
+eig_val = da_eigval.loc['original'][eig_index]
+fn = '../../data/meta_data.csv'
+df_class = pd.read_csv(fn, index_col=0)
+#get top abs values of eigenvector
+#get number neurons to 75th quantile
+quantile = 0.75
+eig_power = np.abs(eig_vec)**2
+eig_power_sort = np.sort(eig_power)[::-1]
+eig_power_cumsum = np.cumsum(eig_power_sort)
+top_n = np.where(eig_power_cumsum > quantile*eig_power_cumsum[-1])[0][0]
+top_inds = np.argsort(np.abs(eig_vec))[-top_n:].values
+top_vals = eig_vec[top_inds]
+top_neurons = df_class.iloc[top_inds]
+print(top_neurons)
 # %%
