@@ -17,7 +17,7 @@ np.random.seed(42)
 # shuffled_i: the connectome matrix with the synapse counts rows and column indices shuffled
 # measurement_error_i: the connectome matrix with the synapse counts randomly perturbed by a poisson process and sign randomly flipped according to the NT confidence
 
-df_sgn = pd.read_csv('../data/connectome_sgn_cnt.csv', index_col=0)
+df_sgn = pd.read_csv('../../data/connectome_sgn_cnt.csv', index_col=0)
 post_root_id_ind = df_sgn['post_root_id_ind'].values
 pre_root_id_ind = df_sgn['pre_root_id_ind'].values
 syn_count_sgn = df_sgn['syn_count_sgn'].values
