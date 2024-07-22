@@ -76,7 +76,7 @@ for i, T in enumerate(tqdm(Ts[:])):
         #confound_noise is a sum of sine waves with random phase
         confound_noise = np.array([np.cos((t/T*2*np.pi + np.random.uniform(0, np.pi*2))*P) for P in period]).T
         confound_noise = confound_noise.sum(1, keepdims=True)
-        confound_noise /= confound_noise.std() #unit counfound noise
+        confound_noise /= confound_noise.std()*2 #unit counfound noise
         #confound_noise[...] = 0
         L = np.random.randn(T) # laser power
         R = np.zeros((N, T)) # number of neurons x number of time samples
