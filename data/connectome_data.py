@@ -16,16 +16,17 @@ neurotransmitter_effects = {
     'OCT': -1,   # Inhibitory
     'SER': -1    # Inhibitory (can have excitatory effects in specific brain circuits)
     }
-
+conn_type = ''
+conn_type = '_no_threshold'
 top_dir = '../data/'
-df_connections = pd.read_csv(top_dir + 'connections.csv')
+df_connections = pd.read_csv(top_dir + 'connections' + conn_type + '.csv')
 df_class = pd.read_csv(top_dir + 'classification.csv')
-
+#%%
 #check if there are any duplicate rows in root_id
 #print(df_class.duplicated(subset='root_id').sum())
 
 df_neurons = pd.read_csv(top_dir + 'neurons.csv')
-
+#%%
 exc_colums = ['da_avg', 'ach_avg']
 df_neurons['exc'] = df_neurons[exc_colums].sum(axis=1)
 df_connections['p_exc'] = df_connections['pre_root_id'].map(df_neurons.set_index('root_id')['exc'])
@@ -73,7 +74,7 @@ conv_dict_rev = {v:k for k, v in conv_dict.items()}
 root_id = [conv_dict_rev[i] for i in range(n_neurons)]
 #save conv_dict_rev as csv 
 df_conv = pd.DataFrame.from_dict(conv_dict_rev, orient='index')
-df_conv.to_csv(top_dir + 'C_index_to_rootid.csv')
+df_conv.to_csv(top_dir + 'C_index_to_rootid' + conn_type + '.csv')
 #%%%
 
 df_class['root_id'] = df_class['root_id'].astype(int)
@@ -88,38 +89,19 @@ df_class['root_id_ind'] = df_class['root_id_ind'].astype(int)
 #sort by root_id_ind
 df_class = df_class.sort_values(by='root_id_ind')
 df_class = df_class.reset_index(drop=True)
-df_class.to_csv(top_dir + 'meta_data.csv')
+df_class.to_csv(top_dir + 'meta_data' + conn_type + '.csv')
 #%%
-#make a dataframe from syn_count_sgn, pre_root_id_ind, post_root_id_ind
+#make a dataframe from syn_count_sgn, pre_root_id_ind, post_root_id_ind, p_exc
 df_sgn = pd.DataFrame({'syn_count_sgn':syn_count_sgn, 'pre_root_id_ind':pre_root_id_ind,   'post_root_id_ind':post_root_id_ind, 'p_exc':df_connections['p_exc'].values})
-df_sgn.to_csv(top_dir + 'connectome_sgn_cnt_prob.csv')
+df_sgn.to_csv(top_dir + 'connectome_sgn_cnt_prob' + conn_type + '.csv')
 #save the sparse matrix
-sp.sparse.save_npz(top_dir + 'connectome_sgn_cnt_sp_mat.npz', C_orig)
-sp.sparse.save_npz(top_dir + 'connectome_sgn_cnt_scaled_sp_mat.npz', W_full)
+sp.sparse.save_npz(top_dir + 'connectome_sgn_cnt_sp_mat' + conn_type + '.npz', C_orig)
+sp.sparse.save_npz(top_dir + 'connectome_sgn_cnt_scaled_sp_mat' + conn_type + '.npz', W_full)
 
 #%%
-k_eig_vecs = 10000#number of eigenvectors to use
+k_eig_vecs = 1000 # number of eigenvectors to use
 eigenvalues, eig_vec = eigs(C_orig, k=k_eig_vecs)#get eigenvectors and values (only need first for scaling)
 #save the eigenvalues and eigenvectors
-np.save(top_dir + 'eigenvalues_' + str(k_eig_vecs) + '.npy', eigenvalues)
-np.save(top_dir + 'eigvec_' + str(k_eig_vecs) + '.npy', eig_vec)
+np.save(top_dir + 'eigenvalues_' + conn_type + '_' + str(k_eig_vecs) + '.npy', eigenvalues)
+np.save(top_dir + 'eigvec_' + conn_type + '_' + str(k_eig_vecs) + '.npy', eig_vec)
 # %%
-#plot absolute value of eigenvalues log log
-plt.figure()
-ind = np.arange(1, k_eig_vecs+1)
-#sort eigenvalues by magnitude
-max = np.max(np.abs(eigenvalues))
-eigenvalues = eigenvalues[np.argsort(np.abs(eigenvalues))[::-1]]/max
-plt.plot(ind, np.abs(eigenvalues), c='k', label='Original',)
-plt.xlabel('Eigenvalue index')
-plt.ylabel('Eigenvalue')
-plt.legend()
-plt.loglog()
-# %%
-#plot first eigenvector
-for i in range(10):
-    plt.figure()
-    plt.plot(eig_vec[:,i])
-    plt.xlabel('Neuron index')
-    plt.ylabel('Eigenvector value')
-    plt.title('Eigenvector ' + str(i))
