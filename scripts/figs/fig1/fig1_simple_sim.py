@@ -11,6 +11,9 @@ mpl.rcParams['ps.fonttype'] = 42
 cmap = 'bwr'
 
 #%%  FIG 1C example traces of confounded and unconfounded responses
+fontsize_title = 6
+fontsize_label = 6
+fontsize_tick = 5
 np.random.seed(1)
 T = 200 # number of time samples
 N = 2 # number of neurons
@@ -33,33 +36,35 @@ for t in range(1, T):
     R[:, t] = W @ R[:, t-1] + noise[t, :] + confound_noise[t, :]
     R_no_confound[:, t] = W @ R_no_confound[:, t-1] + noise[t, :]
 
-s = 0.8
+s = 1.8
 T_samps = 100
-fig, axs = plt.subplots(3,1, figsize=(3*s,4*s), sharey=False, sharex=True, dpi=200)
+fig, axs = plt.subplots(3,1, figsize=(0.7*s,1*s), sharey=False, sharex=True, dpi=200)
 colors = ['C2', 'C6', 'C5',]
 axs[0].plot(confound_noise[:T_samps], c=colors[0])
-axs[0].set_title('Common noise (Z)')
-axs[0].set_xticklabels([])
+axs[0].set_title('Common noise (Z)', fontsize=fontsize_title, y=0.85)
 
 axs[1].plot(R_no_confound[0][:T_samps], c=colors[1])
 axs[1].plot(R_no_confound[1][:T_samps], c=colors[2])
-axs[1].set_title('Raw responses')
+axs[1].set_title('Raw responses', fontsize=fontsize_title, y=0.85)
 
 axs[1].set_xticklabels([])
 
 axs[2].plot(R[0][:T_samps], c=colors[1])
 axs[2].plot(R[1][:T_samps], c=colors[2])
-axs[2].set_title('Confounded responses')
-axs[2].set_xlabel('Time')
-axs[2].set_ylabel('Neural response')
+axs[2].set_title('Confounded responses', fontsize=fontsize_title, y=0.85)
+axs[2].set_xlabel('Time', fontsize=fontsize_label, labelpad=0.)
+axs[2].set_ylabel('Neural\n response', fontsize=fontsize_label, labelpad=0.)
 #axs[2].legend(['X', 'Y'], loc=(1.1,0))
 axs[0].set_yticklabels([])
 axs[2].set_xticks([])
 for i in range(3):
     axs[i].set_yticks([])
+    axs[i].tick_params(axis='both', which='major', labelsize=fontsize_tick)
 
 plt.tight_layout()
-plt.savefig('fig1_sim_example.pdf',bbox_inches='tight', transparent=True, pad_inches=0)
+plt.subplots_adjust(hspace=0.4)  # Adjust the vertical spacing between subplots
+plt.savefig('fig1_sim_example.pdf',bbox_inches='tight', 
+            transparent=True, pad_inches=0, dpi=300)
 
 #%% FIG 1D  simulation showing IV robustness to confounding
 W = np.eye(N) # effectome matrix (no connection between neurons)
@@ -94,28 +99,30 @@ for i, T in enumerate(tqdm(Ts[:])):
         hat_W_xy_IV =(X @ L.T)**(-1) @ Y @ L.T 
         sim_res[i, sim, :] = [hat_W_xy_lstq, hat_W_xy_IV]
 # %%
-s=0.6
-plt.figure(figsize=(3*s,3*s), dpi=300)
+s=1.
+plt.figure(figsize=(s,s), dpi=300)
 color = ['C0', 'C1']
 for i in range(2):
     plt.errorbar(Ts, sim_res[:,:,i].mean(1), yerr=sim_res[:,:,i].std(1), label=['Least-squares', 'IV'][i], c=color[i])
 plt.semilogx()
 #truth in dashed black
 plt.plot([Ts[0], Ts[-1]], [0,0], c='k', ls='--', label='Ground\ntruth', zorder=1000)
-plt.xlabel('# time samples')
-plt.ylabel('Estimate')
-plt.legend(loc=(1.05,0), fontsize=8)
+plt.xlabel('# time samples', fontsize=fontsize_label)
+plt.ylabel('Estimate', fontsize=fontsize_label)
+#plt.legend(loc=(1.05,0), fontsize=8)
 plt.xlim(5e2,2e5)
-plt.title('Effect of X on Y')
+plt.title('Effect of X on Y', fontsize=fontsize_title)
 #replace scientific notation with regular in xticks
 xticks = np.array([1e3, 1e4, 1e5]).astype(int)
 #add labels with commas
 xtick_labels = [f'{x:,}' for x in xticks]
-plt.xticks(xticks, xtick_labels)
+plt.xticks(xticks, xtick_labels, fontsize=fontsize_tick)
+plt.yticks(fontsize=fontsize_tick)
 plt.savefig('IV_vs_lstq_simple.pdf', bbox_inches='tight', transparent=True, pad_inches=0)
 
 # %% FIG 1A traces of random noise
 T = 50
+np.random.seed(1)
 for i in range(2):
     l = np.random.normal(0, 1, T)
     plt.figure(figsize=(1,1), dpi=300)
