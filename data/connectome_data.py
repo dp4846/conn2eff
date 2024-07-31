@@ -1,3 +1,4 @@
+#%%
 import pandas as pd
 from scipy.sparse import csr_matrix
 from scipy.sparse.linalg import eigs
@@ -17,9 +18,8 @@ neurotransmitter_effects = {
     'OCT': -1,   # Inhibitory
     'SER': -1    # Inhibitory (can have excitatory effects in specific brain circuits)
     }
-conn_type = ''
-#conn_type = '_no_threshold'
-df_connections = pd.read_csv('connections' + conn_type + '.csv')
+
+df_connections = pd.read_csv('connections.csv')
 df_class = pd.read_csv('classification.csv')
 # check if there are any duplicate rows in root_id
 # print(df_class.duplicated(subset='root_id').sum())
@@ -31,7 +31,6 @@ df_connections['p_exc'] = df_connections['pre_root_id'].map(df_neurons.set_index
 df_connections['nt_sign'] = 0
 df_connections['nt_sign'][df_connections['p_exc']>=0.5] = 1
 df_connections['nt_sign'][df_connections['p_exc']<0.5] = -1 
-
 df_connections['syn_cnt_sgn'] = df_connections['syn_count']*df_connections['nt_sign']#multiply count by sign for unscaled 'effectome'
 df_connections = df_connections.drop(columns='neuropil')#no need for neuropil
 
@@ -71,7 +70,7 @@ conv_dict_rev = {v:k for k, v in conv_dict.items()}# k is root_id, v is index 0:
 root_id = [conv_dict_rev[i] for i in range(n_neurons)]
 #save conv_dict_rev as csv 
 df_conv = pd.DataFrame.from_dict(conv_dict_rev, orient='index')
-df_conv.to_csv('C_index_to_rootid' + conn_type + '.csv')
+df_conv.to_csv('C_index_to_rootid.csv')
 #%%%
 df_class['root_id'] = df_class['root_id'].astype(int)
 df_class['root_id_ind'] = df_class['root_id'].map(conv_dict)
@@ -85,30 +84,36 @@ df_class['root_id_ind'] = df_class['root_id_ind'].astype(int)
 #sort by root_id_ind
 df_class = df_class.sort_values(by='root_id_ind')
 df_class = df_class.reset_index(drop=True)
-df_class.to_csv('meta_data' + conn_type + '.csv')
+df_class.to_csv('meta_data.csv')
 #%%
-#make a dataframe from syn_count_sgn, pre_root_id_ind, post_root_id_ind, p_exc
-df_sgn = pd.DataFrame({'syn_count_sgn':syn_count_sgn, 'pre_root_id_ind':pre_root_id_ind,   'post_root_id_ind':post_root_id_ind, 'p_exc':df_connections['p_exc'].values})
-df_sgn.to_csv('connectome_sgn_cnt_prob' + conn_type + '.csv')
-#save the sparse matrix
-sp.sparse.save_npz('connectome_sgn_cnt_sp_mat' + conn_type + '.npz', C_orig)
-sp.sparse.save_npz('connectome_sgn_cnt_scaled_sp_mat' + conn_type + '.npz', W_full)
+# make a dataframe from syn_count_sgn, pre_root_id_ind, post_root_id_ind, p_exc
+df_sgn = pd.DataFrame({'syn_count_sgn': syn_count_sgn, 'pre_root_id_ind': pre_root_id_ind, 'post_root_id_ind': post_root_id_ind, 'p_exc': df_connections['p_exc'].values})
+df_sgn.to_csv('connectome_sgn_cnt_prob.csv')
+# save the sparse matrix
+sp.sparse.save_npz('connectome_sgn_cnt_sp_mat.npz', C_orig)
+sp.sparse.save_npz('connectome_sgn_cnt_scaled_sp_mat.npz', W_full)
 
 #%%
-k_eig_vecs = 10000 # number of eigenvectors to use
+k_eig_vecs = 1000 # number of eigenvectors to use
 eigenvalues, eig_vec = eigs(C_orig, k=k_eig_vecs)#get eigenvectors and values (only need first for scaling)
+#%% sort eigenvalues by absolute value
+abs_eigenvalues = np.abs(eigenvalues)
+sort_ind = np.argsort(abs_eigenvalues)[::-1]
+eigenvalues = eigenvalues[sort_ind]
+eig_vec = eig_vec[:, sort_ind]
+
+#%%
 #save the eigenvalues and eigenvectors
-np.save('eigenvalues_' + conn_type + '_' + str(k_eig_vecs) + '.npy', eigenvalues)
-np.save('eigvec_' + conn_type + '_' + str(k_eig_vecs) + '.npy', eig_vec)
+np.save('eigenvalues_' + str(k_eig_vecs) + '.npy', eigenvalues)
+np.save('eigvec_' + str(k_eig_vecs) + '.npy', eig_vec)
 # %% now determine the unique eignevalues and eigenvectors (no conjugates)
 abs_eigenvalues = np.abs(eigenvalues)
 #get indices of unique abs eigenvalues
 #assumes conjugate pairs and no others will have the same absolute value (not true in general but for real data it effectively is)
 unique_inds = np.unique(abs_eigenvalues, return_index=True)[1][::-1]
-#save unique indices as uniq_eig_inds
-np.save('uniq_eig_inds' + conn_type + '_' + str(k_eig_vecs) + '.npy', unique_inds)
+#save unique indices as uniq_eig_inds, last didn't innclude conjugate so take one out
+np.save('uniq_eig_inds_' + str(k_eig_vecs) + '.npy', unique_inds[:-1])
 # get the not unique indices
 #not_unique_inds = np.setdiff1d(np.arange(len(abs_eigenvalues)), unique_inds)
 #check if all not unique indices are complex
 #print(np.all(np.iscomplex(eigenvalues[not_unique_inds])))
-# %%
