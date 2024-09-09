@@ -39,6 +39,7 @@ label_colors = label_colors[1::2]
 # Nonlinear firing rate function (example: sigmoidal function)
 def firing_rate(v, v_start=-50, v_saturate=0, k=0.1, max_rate=100):
     return max_rate / (1 + anp.exp(-k * (v - (v_start + v_saturate) / 2)))
+
 # Differential equation model with noise
 def conductance_dvdt(v, delayed_v, laser, input_drive, W, E, v_rest, tau, R, noise_std):
     v = v[:, None]
@@ -48,6 +49,8 @@ def conductance_dvdt(v, delayed_v, laser, input_drive, W, E, v_rest, tau, R, noi
     noise = np.random.normal(0, noise_std, size=v.shape)
     dvdt = (R * np.multiply(W, (E - v)) @ firing_rate(delayed_v) + v_rest - v + input_drive + noise + laser) / tau
     return dvdt
+
+#conductance dvdt with autograd to get jacobian
 def f(v, E, W, R, tau, v_rest, dt):
     v = v[:, None]
     return ((R * anp.multiply(W, (E - v)) @ firing_rate(v) + v_rest - v)/tau*dt).squeeze()
@@ -154,11 +157,11 @@ np.fill_diagonal(W, 0)
 input_strength = 1.
 shift = -20
 #these are the two conditions
-transient_cut = 200
+transient_cut = 200#cut here to remove initial transient
 I_1 = np.ones((num_steps, D))
 I_2 = np.ones((num_steps, D))
 I_1[:] = shift
-I_2[:] = (np.array(np.linspace(50, -50, D)))*input_strength + shift
+I_2[:] = (np.array(np.linspace(50, -50, D)))*input_strength + shift #2nd condition has different average voltage
 solutions = []
 lasers = []
 Js = []
@@ -167,10 +170,7 @@ for I in [I_1, I_2]:
                                                     num_steps=num_steps, laser_power=2, noise_std=2,dt=dt)
     solutions.append(solution)
     lasers.append(laser)
-    #give jacobian of f with respect to v_mean
     mu_v = np.mean(solution, axis=0)
-    #jacobian_f = jacobian(f)
-    #J = jacobian_f(mu_v, E=np.zeros((D,D)), W=W, R=1, tau=1, v_rest=0, dt=0.1)
     Js.append(J)
 solutions = np.array(solutions)
 
@@ -186,12 +186,8 @@ for q, solution in enumerate(solutions):
                  color=label_colors[i], lw=0.25)
     plt.xlabel('Time (s)', fontsize=fontsize_label)
     plt.ylabel('Firing rate (Hz)', fontsize=fontsize_label)
-
-    #plt.legend(loc=(1.04, 0))
-    #plt.grid()
     plt.ylim(0, 100)
     plt.xlim(-1, 20)
-    #set tick label size
     plt.xticks(fontsize=fontsize_tick)
     plt.yticks(fontsize=fontsize_tick)
     if q==0:
@@ -199,7 +195,7 @@ for q, solution in enumerate(solutions):
     else:
         plt.title('Different average voltage', fontsize=fontsize_title)
     #save fig as pdf 
-    plt.savefig(f'./ED_fig_3_example_{q+1}.pdf', bbox_inches='tight')
+    plt.savefig(f'./ED_fig_3d_example_{q+1}.pdf', bbox_inches='tight')
 
 #%%
 for q in range(2):
@@ -280,14 +276,10 @@ cbar.set_label('Conductance', fontsize=fontsize_label)
 plt.savefig('./ED_fig_3a_W.pdf', bbox_inches='tight')
 #%% simulation to compare IV and IV-bayes for sparse matrices
 D = 10
-# Synaptic conductances and reversal potentials
-
-num_steps = int(1000*1000/dt)# a minute of recording time
-
+num_steps = int(1000*1000/dt)
 input_strength = 10
 I = np.ones((num_steps, D))
 I[:] = np.linspace(-1, 1, D)*input_strength + 40
-#these are the two conditions
 transient_cut = 100
 solutions = []
 Js = []
@@ -305,7 +297,7 @@ for i in range(n_sims):
     Ws.append(W)
     lasers.append(laser)
 solutions = np.array(solutions)
-#%% plot solution
+#%% plot solutions for ED fig 4a
 for q, solution in enumerate(solutions[:1]):
     plt.figure(figsize=(1,1), dpi=300)
     for i in range(D):
@@ -317,9 +309,9 @@ for q, solution in enumerate(solutions[:1]):
     #plt.legend(loc=(1.04, 0))
     plt.grid()
     plt.ylim(0, 100)
-plt.savefig('./ED_fig_4_firing_rate.pdf', bbox_inches='tight')
+plt.savefig('./ED_fig_4a_firing_rate.pdf', bbox_inches='tight')
 
-#%%
+#%% calculate IV and IV-bayes for sparse matrices
 W_od = np.array([W[i, j] for i in range(D) for j in range(D) if i != j])
 #make N_pts_subs a log scale from 100 to num_steps
 N_pts_subs = np.logspace(2, np.log10(num_steps), 10, dtype=int)
@@ -358,7 +350,7 @@ for N_pts_sub in tqdm(N_pts_subs):
 r2s = np.array(r2s)
 mses = np.array(mses)
 print(r2s.shape)
-#%%
+#%% ED fig 4c
 s = 1 
 plt.figure(figsize=(s,s),dpi=200)
 start = 3
@@ -374,10 +366,9 @@ plt.legend(loc=(1.04, 0), fontsize=fontsize_label)
 plt.xticks(fontsize=fontsize_tick)
 plt.yticks(fontsize=fontsize_tick)
 plt.semilogx()
-plt.savefig('./ED_fig_4_r2.pdf', bbox_inches='tight')
+plt.savefig('./ED_fig_4c_r2.pdf', bbox_inches='tight')
 
-#%%
-#scatter W_od for IV and IV-bayes
+#%% ED fig 4b
 N_pts_sub = 10000
 s = 0.6
 fig, ax = plt.subplots(1, 2, figsize=(s*4, s*2), sharey=True)
@@ -425,68 +416,22 @@ for i in range(2):
     c = np.corrcoef(x_data[i], y_data[i])[0, 1]
     ax[i].set_title(f'$R^2$ = {c**2:.2f}', fontsize=fontsize_title)
 plt.tight_layout()
-plt.savefig('./ED_fig_4_IV_IV_bayes.pdf', bbox_inches='tight')
-# %%
-
-#%% plot jacobian versus W_od
-s=0.5
-plt.subplots(1, 1, figsize=(5, 2.5), sharey=True)
-plt.scatter(J_od, W_od, label='True Jacobian')
-plt.xticks(np.arange(-0.2*s, 0.2*s, 0.1*s))
-plt.yticks(np.arange(-0.2*s, 0.2*s, 0.1*s))
-plt.xlim(-0.15*s, 0.15*s)
-plt.ylim(-0.15*s, 0.15*s)
-plt.gca().set_aspect('equal', adjustable='box')
-plt.grid(True, linestyle='--', alpha=0.6)
-plt.xlabel('Jacobian')
-plt.ylabel('True Conductance')
-#%%calculate correlation between Jacobian and W_od for non-zero weights
-rs = []
-for q, solution in enumerate(solutions):
-    J = Js[q]
-    W = Ws[q]
-    J_od = np.array([J[i, j] for i in range(D) for j in range(D) if i != j])
-    W_od = np.array([W[i, j] for i in range(D) for j in range(D) if i != j])
-    J_od_nonzero = J_od[W_od != 0]
-    W_od_nonzero = W_od[W_od != 0]
-    rs.append(np.corrcoef(J_od_nonzero, W_od_nonzero)[0, 1])
-rs = np.array(rs)
-print('Correlation between Jacobian and W_od for non-zero weights:', rs.mean())
+plt.savefig('./ED_fig_4b_IV_IV_bayes.pdf', bbox_inches='tight')
 
 
-
-#%%
-#plot of firing rates for each neuron
-
-plt.figure(figsize=(3,2), dpi=150)
-for i in range(D):
-    plt.plot(t[:-transient_cut]/1000, firing_rate(solution[transient_cut:, i]), label=f'Neuron {i+1}', alpha=0.3)
-plt.xlabel('Time (s)')
-plt.ylabel('Firing rate (Hz)')
-
-#plt.legend(loc=(1.04, 0))
-plt.grid()
-plt.ylim(0, None)
-#plt.xlim(0, None)
-plt.show()
 #%%
 
 plt.figure(figsize=(4,3), dpi=200)
-#show the weight matrix in hot cool with colorbar no ticks just label x pre-synaptic and y post-synaptic
 v_abs_max = np.max(np.abs(W))
 plt.imshow(W, cmap='Reds', vmin=0, vmax=0.02)
-
 plt.xlabel('Pre-synaptic\nneuron')
 plt.ylabel('Post-synaptic\nneuron')
 plt.title(r'$W_0$')
 plt.xticks([])
 plt.yticks([])
-#only max and min ticks on colorbar, colorbar should be same height as plot
-
 plt.colorbar(ticks=[0, 0.02], label='Conductance')
 plt.tight_layout()
-
-
+plt.savefig('./ED_fig_4a_W.pdf', bbox_inches='tight')
 # %%
 plt.figure(figsize=(1,1))
 v = np.linspace(-100, 100, 1000)
@@ -497,5 +442,5 @@ plt.title('Firing rate function', fontsize=fontsize_title)
 #set tick label size
 plt.xticks(fontsize=fontsize_tick)
 plt.yticks(fontsize=fontsize_tick)
-plt.savefig('./ED_fig_3_firing_rate.pdf', bbox_inches='tight')
+plt.savefig('./ED_fig_3b_firing_rate.pdf', bbox_inches='tight')
 # %%
