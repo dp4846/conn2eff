@@ -6,16 +6,12 @@ import autograd.numpy as anp
 import matplotlib as mpl
 #%% now calculate the estimate using IV method
 from tqdm import tqdm
-#set the matplotlib font to arial
+#set the matplotlib font to arial to match nature style
 plt.rcParams['font.family'] = 'sans-serif'
 plt.rcParams['font.sans-serif'] = 'Arial'
 mpl.rcParams['pdf.fonttype'] = 42
 mpl.rcParams['ps.fonttype'] = 42
 colors = ['#95A3CE', '#D5A848', '#7dcd13', '#47c4cb', '#47c4cb', '#E760A3', '#BA00FF', '#8B4513', '#39FF14', '#FF4500', '#708090']
-#label_colors = [mcolors.to_rgb(color) for color in colors]
-#color blind friendly palette up to 11 use viridis
-# colormap = plt.cm.cividis
-# label_colors = [colormap(a) for a in  np.linspace(0, 1, 10)]
 color_palette = {
     "black": "#000000",
     "lightblue": "#B6DBFF",
@@ -31,15 +27,13 @@ color_palette = {
     "lightpurple": "#D2BBD7",
     "purple": "#AE75A2",
     "darkpurple": "#882D71",
-    "grey": "#DEDEDE"
-}
+    "grey": "#DEDEDE"}
 label_colors = [color_palette[key] for key in color_palette.keys()]
 label_colors = label_colors[1::2]
 #%%
 # Nonlinear firing rate function (example: sigmoidal function)
 def firing_rate(v, v_start=-50, v_saturate=0, k=0.1, max_rate=100):
     return max_rate / (1 + anp.exp(-k * (v - (v_start + v_saturate) / 2)))
-
 # Differential equation model with noise
 def conductance_dvdt(v, delayed_v, laser, input_drive, W, E, v_rest, tau, R, noise_std):
     v = v[:, None]
@@ -49,12 +43,10 @@ def conductance_dvdt(v, delayed_v, laser, input_drive, W, E, v_rest, tau, R, noi
     noise = np.random.normal(0, noise_std, size=v.shape)
     dvdt = (R * np.multiply(W, (E - v)) @ firing_rate(delayed_v) + v_rest - v + input_drive + noise + laser) / tau
     return dvdt
-
 #conductance dvdt with autograd to get jacobian
 def f(v, E, W, R, tau, v_rest, dt):
     v = v[:, None]
     return ((R * anp.multiply(W, (E - v)) @ firing_rate(v) + v_rest - v)/tau*dt).squeeze()
-
 def suff_stats_fit_prior(X, Y, L, d=1):
     #generate statistics from which IV and IV-bayes can be calculated
     # regress X on L to give hat_X (just a function of laser) for 1st stage of 2 stage least squares
@@ -66,7 +58,6 @@ def suff_stats_fit_prior(X, Y, L, d=1):
     XTY = np.matmul(hat_X[:, :-d], Y[:, d:, None]).squeeze(-1)
     XTX = hat_X @ hat_X.T
     return XTX, XTY, sig2, hat_W_xy_IV
-
 def fit_prior_w_suff_stat(XTX, XTY, sig2, a_C, prior_mean_scale=1, prior_var_scale=1):
     #function to take stats from suff_stats_fit_prior and estimate W_xy using prior
     N_stim_neurons = XTX.shape[0]
@@ -81,12 +72,9 @@ def fit_prior_w_suff_stat(XTX, XTY, sig2, a_C, prior_mean_scale=1, prior_var_sca
     cov = inv_sig2_XTY + prior_W * inv_gamma2
     hat_W_xy_IV_bayes = np.matmul(inv, cov[..., None]).squeeze()
     return hat_W_xy_IV_bayes
-
-
 def simulate_conductance_model(W, E=None, I=None, tau=1, R=1, D=5, delay=10, num_steps=1000, x0=0, v_rest=-70, dt=0.1, noise_std=0, laser_power=1):
     '''
     Simulate a conductance-based model of D neurons with Euler's method.
-
     Parameters:
     W: array-like, shape=(D, D)
         Weight matrix of conductances between neurons.
@@ -122,8 +110,9 @@ def simulate_conductance_model(W, E=None, I=None, tau=1, R=1, D=5, delay=10, num
         Laser stimulation over time.
     t: array, shape=(num_steps,)
         Time points of the simulation.
+    J: array, shape=(D, D) 
+        Jacobian of the model evaluated at the average membrane potential.
         '''
-    
     if E is None:#default to excitatory
         E = np.zeros((D, D))#GLUTAMATE receptors reverse potential is ~0mV (excitatory)
         #GABA receptors reverse potential is ~-70mV (inhibitory)
@@ -151,16 +140,14 @@ dt = 1.0
 tau = 10
 num_steps = int(1000*600/dt)# a minute of recording time
 D = 5
-# Synaptic conductances and reversal potentials
 W = np.random.uniform(0.01, 0.02, size=(D, D))
 np.fill_diagonal(W, 0)
 input_strength = 1.
 shift = -20
-#these are the two conditions
 transient_cut = 200#cut here to remove initial transient
 I_1 = np.ones((num_steps, D))
 I_2 = np.ones((num_steps, D))
-I_1[:] = shift
+I_1[:] = shift #condition 1 has same average voltage
 I_2[:] = (np.array(np.linspace(50, -50, D)))*input_strength + shift #2nd condition has different average voltage
 solutions = []
 lasers = []
@@ -194,7 +181,6 @@ for q, solution in enumerate(solutions):
         plt.title('Same average voltage', fontsize=fontsize_title)
     else:
         plt.title('Different average voltage', fontsize=fontsize_title)
-    #save fig as pdf 
     plt.savefig(f'./ED_fig_3d_example_{q+1}.pdf', bbox_inches='tight')
 
 #%%
@@ -247,23 +233,16 @@ for q in range(2):
         #put correlation coefficient in the title
         c = np.corrcoef(x_data[i], y_data)[0, 1]
         ax[i].set_title(f'$r^2 = {c**2:.2f}$', fontsize=fontsize_title)
-            #set tick label size
-
         ax[i].tick_params(axis='x', labelsize=fontsize_tick)
         ax[i].tick_params(axis='y', labelsize=fontsize_tick)
 
     plt.tight_layout()
     plt.savefig(f'./ED_fig_3cd_est_{q+1}.pdf', bbox_inches='tight')
-
-
-
 #%%
-
 plt.figure(figsize=(1,1), dpi=200)
 #show the weight matrix in hot cool with colorbar no ticks just label x pre-synaptic and y post-synaptic
 v_abs_max = np.max(np.abs(W))
 plt.imshow(W, cmap='Reds', vmin=0, vmax=0.02)
-
 plt.xlabel('Pre-synaptic\nneuron', fontsize=fontsize_label)
 plt.ylabel('Post-synaptic\nneuron', fontsize=fontsize_label)
 plt.title(r'$W_0$', fontsize=fontsize_title)
@@ -306,14 +285,12 @@ for q, solution in enumerate(solutions[:1]):
     plt.ylabel('Firing rate (Hz)', fontsize=fontsize_label)
     plt.xticks(fontsize=fontsize_tick)
     plt.yticks(fontsize=fontsize_tick)
-    #plt.legend(loc=(1.04, 0))
     plt.grid()
     plt.ylim(0, 100)
 plt.savefig('./ED_fig_4a_firing_rate.pdf', bbox_inches='tight')
 
 #%% calculate IV and IV-bayes for sparse matrices
 W_od = np.array([W[i, j] for i in range(D) for j in range(D) if i != j])
-#make N_pts_subs a log scale from 100 to num_steps
 N_pts_subs = np.logspace(2, np.log10(num_steps), 10, dtype=int)
 r2s = []
 mses = []
@@ -340,7 +317,6 @@ for N_pts_sub in tqdm(N_pts_subs):
         
         r2_IV_bayes = np.corrcoef(hat_W_xy_IV_bayes_od, J_od)[0, 1]**2
         r2_IV = np.corrcoef(hat_W_xy_IV_od, J_od)[0, 1]**2
-        #do MSE instead
         mse_IV_bayes = np.mean((hat_W_xy_IV_bayes_od - J_od)**2)
         mse_IV = np.mean((hat_W_xy_IV_od - J_od)**2)
         mses_temp.append([mse_IV, mse_IV_bayes])
@@ -367,7 +343,6 @@ plt.xticks(fontsize=fontsize_tick)
 plt.yticks(fontsize=fontsize_tick)
 plt.semilogx()
 plt.savefig('./ED_fig_4c_r2.pdf', bbox_inches='tight')
-
 #%% ED fig 4b
 N_pts_sub = 10000
 s = 0.6
@@ -383,10 +358,8 @@ Y = solution[transient_cut:N_pts_sub].T
 L = L - np.mean(L, axis=1, keepdims=True)
 X = X - np.mean(X, axis=1, keepdims=True)
 Y = Y - np.mean(Y, axis=1, keepdims=True)
-
 XTX, XTY, sig2, hat_W_xy_IV = suff_stats_fit_prior(X, Y, L, d=delay)
 hat_W_xy_IV_bayes = fit_prior_w_suff_stat(XTX, XTY, sig2, a_C=W, prior_mean_scale=1, prior_var_scale=1)
-
 J_od = np.array([J[i, j] for i in range(D) for j in range(D) if i != j])
 hat_W_xy_IV_od = np.array([hat_W_xy_IV[i, j] for i in range(D) for j in range(D) if i != j])
 hat_W_xy_IV_bayes_od = np.array([hat_W_xy_IV_bayes[i, j] for i in range(D) for j in range(D) if i != j])
@@ -397,30 +370,23 @@ x_labels = ['Jacobian', '']
 y_labels = ['IV', 'IV-Bayes']
 for i in range(2):
     ax[i].scatter(x_data[i], y_data[i], color=f'C0', marker='o', s=3, label=f'Simulation {q+1}', )
-
     ax[i].set_xlabel(x_labels[i], fontsize=fontsize_label)
     ax[i].set_ylabel(y_labels[i], fontsize=fontsize_label)
     ax[i].set_xticks(np.arange(-0.2*s, 0.2*s, 0.1*s), fontsize=fontsize_tick)
     ax[i].set_yticks(np.arange(-0.2*s, 0.2*s, 0.1*s), fontsize=fontsize_tick)
-    #set tick label size
     ax[i].set_xticks(np.arange(-0.2*s, 0.2*s, 0.1*s))
     ax[i].set_yticks(np.arange(-0.2*s, 0.2*s, 0.1*s))
     ax[i].tick_params(axis='both', labelsize=fontsize_tick)
     ax[i].set_xlim(-0.15*s, 0.15*s)
     ax[i].set_ylim(-0.15*s, 0.15*s)
     ax[i].set_aspect('equal', adjustable='box')
-    #ax[i].grid(True, linestyle='--', alpha=0.6)
     ax[i].axhline(0, color='gray', linewidth=1, linestyle='-')
     ax[i].axvline(0, color='gray', linewidth=1, linestyle='-')
-    #put correlation coefficient in the title
     c = np.corrcoef(x_data[i], y_data[i])[0, 1]
     ax[i].set_title(f'$R^2$ = {c**2:.2f}', fontsize=fontsize_title)
 plt.tight_layout()
 plt.savefig('./ED_fig_4b_IV_IV_bayes.pdf', bbox_inches='tight')
-
-
-#%%
-
+#%% ED fig 4a
 plt.figure(figsize=(4,3), dpi=200)
 v_abs_max = np.max(np.abs(W))
 plt.imshow(W, cmap='Reds', vmin=0, vmax=0.02)
@@ -432,14 +398,13 @@ plt.yticks([])
 plt.colorbar(ticks=[0, 0.02], label='Conductance')
 plt.tight_layout()
 plt.savefig('./ED_fig_4a_W.pdf', bbox_inches='tight')
-# %%
+# %% ED fig 3b
 plt.figure(figsize=(1,1))
 v = np.linspace(-100, 100, 1000)
 plt.plot(v, firing_rate(v))
 plt.xlabel('Membrane Potential (mV)', fontsize=fontsize_label)
 plt.ylabel('Firing rate (Hz)', fontsize=fontsize_label)
 plt.title('Firing rate function', fontsize=fontsize_title)
-#set tick label size
 plt.xticks(fontsize=fontsize_tick)
 plt.yticks(fontsize=fontsize_tick)
 plt.savefig('./ED_fig_3b_firing_rate.pdf', bbox_inches='tight')
