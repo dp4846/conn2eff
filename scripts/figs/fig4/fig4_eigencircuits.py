@@ -17,7 +17,39 @@ plt.rcParams['font.sans-serif'] = 'Arial'
 mpl.rcParams['pdf.fonttype'] = 42
 mpl.rcParams['ps.fonttype'] = 42
 colors = ['#95A3CE', '#D5A848', '#7dcd13', '#47c4cb', '#47c4cb', '#E760A3', '#BA00FF', '#8B4513', '#39FF14', '#FF4500', '#708090']
-label_colors = [mcolors.to_rgb(color) for color in colors]
+#label_colors = [mcolors.to_rgb(color) for color in colors]
+#color blind friendly palette up to 11 use viridis
+# colormap = plt.cm.cividis
+# label_colors = [colormap(a) for a in  np.linspace(0, 1, 10)]
+color_palette = {
+    "black": "#000000",
+    "lightblue": "#B6DBFF",
+    "midblue": "#7BB0DF",
+    "darkblue": "#1964B0",
+    "lightteal": "#00C992",
+    "teal": "#008A69",
+    "darkteal": "#386350",
+    "yellow": "#E9DC6D",
+    "orange": "#F4A637",
+    "vermilion": "#DB5829",
+    "maroon": "#894B45",
+    "lightpurple": "#D2BBD7",
+    "purple": "#AE75A2",
+    "darkpurple": "#882D71",
+    "grey": "#DEDEDE"
+}
+label_colors = [color_palette[key] for key in color_palette.keys()]
+label_colors_optic = label_colors[1::3]
+label_colors_ring = label_colors[1:]
+nms = ["lightblue", "teal", "yellow", "maroon", "darkpurple" ]
+label_colors_optic = [color_palette[nm] for nm in nms]
+#plot examples of each color in label_colors_optic
+s = 1
+fig, ax = plt.subplots(1, 1, figsize=(s,s), dpi=300)
+for i, color in enumerate(label_colors):
+    ax.plot([0,1], [i,i], color=color, label=list(color_palette.keys())[i])
+ax.legend(loc='upper right', fontsize=6)
+plt.axis('off')
 #%% load up dynamics matrix, meta data, eigenvalues, and eigenvectors
 top_dir = '../../../'
 data_dir = top_dir + 'data/'
@@ -45,8 +77,8 @@ ev_abs = np.abs(eig_vec[all_sorted_inds, ev_ind])
 frac_var_ind = np.where(np.cumsum(ev_abs**2)/np.sum(ev_abs**2)>0.75)[0][0]
 
 top_ind = np.array(list(all_sorted_inds[:frac_var_ind]))
-top_ind = [81328, 122580, 111920, 84745] + list(all_sorted_inds[4:frac_var_ind]) #this is wher the elbow is, excluded HSE, and swtiched order for better vis
-label = ['VCH', 'DCH', 'LPi21', 'Am1'] #easier to hand label
+#top_ind = [81328, 122580, 111920, 84745] + list(all_sorted_inds[4:frac_var_ind]) #this is wher the elbow is, excluded HSE, and swtiched order for better vis
+label = ['Am1', 'LPi21', 'DCH', 'VCH',   ] #easier to hand label
 x0 = eig_vec[top_ind, ev_ind]
 W = np.array(C_orig[top_ind, :][:, top_ind].todense())
 c = 0.63#target amplitude
@@ -95,7 +127,8 @@ ax1.scatter(range(len(eig_vec[:,ev_ind])), np.real(eig_vec[:,ev_ind]), color='gr
 #annotate with eigenvalue
 ax1.annotate(r'$\lambda_1$=' f'{((eigenvalues[ev_ind])*scale_orig*0.99):.2f}', xy=(0.1, 0.1), xycoords='axes fraction', fontsize=fontsize_tick)
 for i in range(N_w):
-    ax1.scatter([top_ind[i]], [np.real(eig_vec[top_ind[i], ev_ind])], color=label_colors[i], alpha=1, marker='o', s=1)
+    ax1.scatter([top_ind[i]], [np.real(eig_vec[top_ind[i], ev_ind])], color=label_colors_optic[i], alpha=1, marker='o', s=1)
+
 
 ax1.set_xticks([0, 50000, 100000])
 ax1.set_xticklabels(['0', '50,000', '100,000'], fontsize=fontsize_tick)
@@ -104,9 +137,9 @@ ax1.set_yticklabels([-0.5,0,0.5], fontsize=fontsize_tick)
 
 
 for i in range(N_w):
-    ax2.plot(ts, xs[:,i], color=label_colors[i], label=label[i], alpha=0.5, ls='--')
+    ax2.plot(ts, xs[:,i], color=label_colors_optic[i], label=label[i], alpha=0.5, ls='--')
 for i in range(N_w):
-    ax2.plot(ts, xs_rect[:,i], color=label_colors[i], label=label[i], alpha=1.0, ls='-')
+    ax2.plot(ts, xs_rect[:,i], color=label_colors_optic[i], label=label[i], alpha=1.0, ls='-')
 # ax2.legend(loc='upper right', bbox_to_anchor=(1.8, 1), fontsize=fontsize_tick, ncol=2, handletextpad=0.1, 
 #                         columnspacing=0.5, title='Linear  Rectified', title_fontsize=fontsize_tick)
 ax2.set_xlabel('Time (ms)', fontsize=fontsize_label)
@@ -118,7 +151,7 @@ ax2.set_xlim([-1, 25])
 ax2.set_yticklabels([])
 ax2.set_ylim([-ylim, ylim])
 fig.tight_layout()
-plt.savefig('opp_motion_eigenvector.pdf', bbox_inches='tight', dpi=500)
+plt.savefig('opp_motion_leg_eigenvector.pdf', bbox_inches='tight', dpi=500)
 #%%
 A_step = sp.linalg.expm(sp.linalg.logm(W_scale) * 1/(sample_rate*dt))
 u_flow = np.zeros_like(x0)
@@ -127,7 +160,7 @@ x0 = np.real(eig_vec[top_ind, 0])
 x0 = np.zeros_like(x0)
 s = 0.01#stim strength
 u_flow[np.array([0,1,2,3])] = s
-u_right[np.array([0,1,])] = s
+u_right[np.array([2,3,])] = s
 xs_rects = []
 for u in ([u_right, u_flow]):
     xs_rect = [x0,]
@@ -144,12 +177,12 @@ for j, xs_rect in enumerate(xs_rects):
     xs_rect = np.array(xs_rect)
     for i in range(4):
         plt.plot(ts, xs_rect[:,i], ls=['-', ':'][j], 
-                        color=label_colors[i], label=[label, [' ',]*4][j][i], alpha=1)
-#plt.legend(ncol=2, title='BTF               BTF \nright           left + right', loc=(1.1,0.2), fontsize=fontsize_tick)
+                        color=label_colors_optic[i], label=[label, [' ',]*4][j][i], alpha=1)
+plt.legend(ncol=2, title='BTF               BTF \nright           left + right', loc=(1.1,0.2), fontsize=fontsize_tick)
 plt.xlabel('Time (ms)', fontsize=fontsize_label)
 plt.ylabel('Activity (a.u.)', fontsize=fontsize_label)
 plt.xticks([0, 100, 200], fontsize=fontsize_tick)
-plt.xlim([0, None])
+plt.xlim([-10, None])
 plt.yticks([0,0.5], fontsize=fontsize_tick)
 plt.xticks(fontsize=fontsize_tick)
 #plt.ylim(-0.1, 0.6)
@@ -212,7 +245,7 @@ ax1.scatter(range(len(eig_vec[:,ev_ind])), -np.real(eig_vec[:,ev_ind]), color='g
 #annotate with eigenvalue
 ax1.annotate(r'$\lambda_{45}$=' f'{((eigenvalues[ev_ind])*scale_orig*0.99):.2f}', xy=(0.3, 0.1), xycoords='axes fraction', fontsize=fontsize_tick)
 for i in range(N_w):
-    ax1.scatter([top_ind[i]], [-np.real(eig_vec[top_ind[i], ev_ind])], color=label_colors[i], alpha=1, marker='o', s=1)
+    ax1.scatter([top_ind[i]], [-np.real(eig_vec[top_ind[i], ev_ind])], color=label_colors_ring[i], alpha=1, marker='o', s=1)
 ax1.set_xticks([0, 50000, 100000], fontsize=fontsize_tick)
 ax1.set_xticklabels(['0', '50,000', '100,000'], fontsize=fontsize_tick)
 ax1.set_yticks([-0.25,0,0.25], fontsize=fontsize_tick)
@@ -221,9 +254,9 @@ ax1.set_yticklabels([-0.25,0,0.25], fontsize=fontsize_tick)
 xs = np.array(xs)
 xs_rect = np.array(xs_rect)
 for i in range(N_w):
-    ax2.plot(ts, xs[:,i], color=label_colors[i], label=label[i], alpha=0.5, ls='--')
+    ax2.plot(ts, xs[:,i], color=label_colors_ring[i], label=label[i], alpha=0.5, ls='--')
 for i in range(N_w):
-    ax2.plot(ts, xs_rect[:,i], color=label_colors[i], label=label[i], alpha=1.0, ls='-')
+    ax2.plot(ts, xs_rect[:,i], color=label_colors_ring[i], label=label[i], alpha=1.0, ls='-')
 #ax2.legend(loc='upper right', bbox_to_anchor=(1.8, 1), fontsize=fontsize_tick, ncol=2, handletextpad=0.1, 
 #                        columnspacing=0.5, title='Linear  Rectified', title_fontsize=fontsize_tick)
 ax2.set_xlabel('Time (ms)', fontsize=fontsize_label)
@@ -246,7 +279,7 @@ W_run  = W_scale
 #W_run = 0.99*W_run/(np.max(np.abs(np.linalg.eigvals(W_run))))
 ts =  np.arange(0, T, 1/sample_rate)
 A_step = sp.linalg.expm(sp.linalg.logm(W_run) * 1/(sample_rate*dt))
-for stim_neur in [0,5]:
+for stim_neur in [0,4]:
     u = np.zeros(frac_var_ind)
     stim = 0.01
     g = 0.6
@@ -262,7 +295,7 @@ for stim_neur in [0,5]:
     xs_rect = np.array(xs_rect)
     plt.figure(figsize=(s*1.1,s))
     for i in range(10):
-        plt.plot(ts, xs_rect[:,i], ls=['-', ':'][0], color=c[i], alpha=1)
+        plt.plot(ts, xs_rect[:,i], ls=['-', ':'][0], color=label_colors_ring[i], alpha=1)
     plt.xlabel('Time (ms)', fontsize=fontsize_label)
     plt.ylabel('Activity (a.u.)', fontsize=fontsize_label)
     plt.xticks([0, 100, 200])
