@@ -136,7 +136,7 @@ def simulate_conductance_model(W, E=None, I=None, tau=1, R=1, D=5, delay=10, num
         solution[i, :] = solution[i-1, :] + (dvdt * dt).squeeze()
     mu_v = np.mean(solution, axis=0)
     jacobian_f = jacobian(f)
-    J = jacobian_f(mu_v, E=np.zeros((D,D)), W=W, R=1, tau=1, v_rest=0, dt=dt)
+    J = jacobian_f(mu_v, E=E, W=W, R=1, tau=tau, v_rest=v_rest, dt=dt)
     return solution, laser, t, J
 
 
