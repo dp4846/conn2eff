@@ -38,23 +38,6 @@ def simulate_ARP(W, W_lx, T=1000, laser_power=1, seed=None):
     return R, L
 
 def flatten_weight_matrix(W):
-    def flatten_weight_matrix(W):
-        """
-        Flattens an AR(P) dynamics weight matrix by rearranging its dimensions.
-        W = [[W1, W2, ..., WP], [I, 0, 0, ..., 0, 0], [0, I, 0, ..., 0, 0], ..., [0, 0, 0, ... I, 0]]
-        Parameters:
-        - W (ndarray): The weight matrix to be flattened. It should have shape (D, D, P), where D is the dimension and P is the dynamics order.
-
-        Returns:
-        - W_flat (ndarray): The flattened weight matrix with shape (D*P, D*P).
-        """
-        D, _, P = W.shape
-        W_flat = np.zeros((D*P, D*P))
-        for i in range(P):
-            W_flat[:D, i*D:(i+1)*D] = W[..., i]
-        I = np.eye(D*P)
-        W_flat[D:, :] = I[:-D, :]
-        return W_flat
     D, _, P = W.shape
     W_flat = np.zeros((D*P, D*P))
     for i in range(P):
